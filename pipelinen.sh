@@ -6,12 +6,12 @@
 #$ -S /bin/bash
 . /usr/prog/softenv/softenv.sh
 
-snprate=0.01
-errrate=0.01
+snprate=0.02
+errrate=0.02
 coverage=50
-readlen=2000
+readlen=4000
 region=21
-freq=35
+freq=15
 iteration=1
 
 snprate=$1
@@ -34,7 +34,7 @@ then
 	qsub -sync y -l mem_token=10G ./simulate_read.sh $snprate $errrate $coverage $readlen $region ${read_base} ${som_base} $freq
 	echo simulation complete
 
-	qsub -sync y -l mem_token=8G ./long_read_map.sh ${read_base} $region
+	qsub -sync y -l mem_token=20G ./long_read_map.sh ${read_base} $region
 	echo alignment complete
 
 	qsub -sync y -l mem_token=1G ./snp_calling.sh ${read_base} ${vcf_base} $region $snprate $freq
@@ -43,7 +43,7 @@ then
 	qsub -l mem_token=9G ./mutect.sh $snprate $coverage $readlen $region $freq
 	echo mutect kicked in
 
-	cd NB 
+	cd Gibbs 
 	output_base=${base}/output/${pre}
 	qsub -sync y -l mem_token=4G ./program.sh ${read_base} ${vcf_base} $region $iteration ${som_base} ${output_base} $pre $coverage $errrate $freq
 	echo HMM complete
@@ -66,7 +66,7 @@ else
 	qsub -sync y -t 1-22 -l mem_token=1G ./snp_calling.sh ${read_base} ${vcf_base} $region
 	echo snp calling complete
 
-	cd NB 
+	cd Gibbs
 	output_base=${base}/output/${pre}_${iteration}
 	qsub -sync y -t 1-22 -l mem_token=4G ./program.sh ${read_base} ${vcf_base} $region $iteration ${som_base} ${output_base} $pre $coverage $errrate
 

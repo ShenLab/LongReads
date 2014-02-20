@@ -17,7 +17,7 @@ fi
 prefix=${base}_${region}
 
 PICARD=/usr/prog/picard-tools/1.52/
-JAVA="java -Xmx10000m -Djava.io.tmpdir=./tmp"
+JAVA="java -Xmx19000m -Djava.io.tmpdir=./tmp"
 
 # One-time calling
 # bwa index -a bwtsw bcm_hg18.fasta
@@ -28,7 +28,7 @@ JAVA="java -Xmx10000m -Djava.io.tmpdir=./tmp"
 #bwa bwasw -b 4 -q 4 -r 4 -w 500 reference/hg19.fasta ${prefix}.fq  > ${prefix}_temp.samd
 #bwa mem -H -t 4 -w 50 -O 4 -E 6 -R "@RG\tID:hmID\tSM:hmSM\tLB=hmLB\tPL=illumina\tPU=hmPU" reference/hg19.fasta ${prefix}.fq  > ${prefix}_temp.samd
 
-bwa mem -H -w 50 -B 3 -O 3 -E 1 -v 0 reference/hg19.fasta ${prefix}.fq  > ${prefix}_temp.samd
+bwa mem -H -w 50 -v 0 reference/hg19.fasta ${prefix}.fq  > ${prefix}_temp.samd
 
 #awk -v reg="chr${region}" 'function rem(cigar) {num=0;for(it=1;it<=length(cigar);it++) {sb=substr(cigar,it,1); if(sb ~ /[0-9]/) {num=10*num+sb;} else { if(sb!="H") return 0; else return num;}}} {if((NF==3)||!match($10,"N")&&$4>0&&$5>=10&&$3==reg&&$6!="*"&&!match($6,"H")&&!match($6,"S")) print}' ${prefix}_temp.samd > ${prefix}_temp.sam
 awk -v reg="chr${region}" 'function rem(cigar) {num=0;for(it=1;it<=length(cigar);it++) {sb=substr(cigar,it,1); if(sb ~ /[0-9]/) {num=10*num+sb;} else { if(sb!="H") return 0; else return num;}}} {if((NF==3)||!match($10,"N")&&$4>0&&$3==reg&&$6!="*") print}' ${prefix}_temp.samd > ${prefix}_temp.sam
@@ -51,6 +51,6 @@ qsub -sync y gatk_recalibrate.sh ${prefix} $region
 samtools view -h ${prefix}.sorted.bam > ${prefix}.sorted.sam
 grep -v ^@ ${prefix}.sorted.sam | cut -f 1,4 | cut -d ':' -f 3 > ${prefix}.ibs
 
-rm ${prefix}.fq
-rm ${prefix}.sam
+#rm ${prefix}.fq
+rm ${prefix}.reheader.bam ${prefix}.forRealigner.intervals ${prefix}.recal_data.csv ${prefix}.realigned.bai ${prefix}.realigned.bam ${prefix}.rg.bam ${prefix}.rg.bam.bai ${prefix}.sort.bam ${prefix}.sort.bam.bai ${prefix}.sam
 

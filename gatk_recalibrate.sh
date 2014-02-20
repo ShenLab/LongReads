@@ -34,7 +34,7 @@ $GATK \
   -recalFile ${PREFIX}.recal_data.csv \
   -o ${PREFIX}.sorted.bam
 
-cp ${PREFIX}.sorted.bai ${PREFIX}.sorted.bam.bai
+mv ${PREFIX}.sorted.bai ${PREFIX}.sorted.bam.bai
 
 ##$GATK \
 #    -T BaseRecalibrator \

@@ -22,11 +22,11 @@ extern vector<READ*> reads_list;
 extern double errate;
 extern int coverage;
 
-int PROXIMAL_READ_CT = 5;
+int PROXIMAL_READ_CT = 10;
 
 //===============================================================================
 
-#define DEBUG
+//#define DEBUG
 //#define FULLDEBUG
 
 //===============================================================================
@@ -54,20 +54,28 @@ long int nCr (int n, int r)
 	return fact;
 }
 
+// Works on known snp list
 int GetPosQual(int t, long pos)
 {
-	for(int i=0; i<reads_list[t]->GetSnpCount(); i++) {
-		if(reads_list[t]->GetSnpList()[i]->GetPos()==pos)
-			return reads_list[t]->GetQualScore(i);
+	READ *rd = reads_list[t];
+	int snp_count = rd->GetKnownCount();
+	SNP ** snp_list = rd->GetKnownList();
+	for(int i=0; i<snp_count; i++) {
+		if(snp_list[i]->GetPos()==pos)
+			return rd->GetKnownQualScore(i);
 	}
 	return 'N';
 }
 
+// Works on known snp list
 char GetPosAllele(int t, long pos)
 {
-	for(int i=0; i<reads_list[t]->GetSnpCount(); i++) {
-		if(reads_list[t]->GetSnpList()[i]->GetPos()==pos)
-			return reads_list[t]->GetAllele(i);
+	READ *rd = reads_list[t];
+	int snp_count = rd->GetKnownCount();
+	SNP ** snp_list = rd->GetKnownList();
+	for(int i=0; i<snp_count; i++) {
+		if(snp_list[i]->GetPos()==pos)
+			return rd->GetKnownAllele(i);
 	}
 	return 'N';
 }
@@ -92,15 +100,16 @@ void NaiveBayes(int snp_start, int snp_end, int T)
                 double emission_list[3], haprob[3], emission_set[3][100];
 		READ *pd = reads_list[t-1];
 		READ *nd = reads_list[t];
-		int rlen = (*nd).GetLen();
-                int rd_start = (*pd).GetPos() < (*nd).GetPos() ? (*nd).GetPos() : (*pd).GetPos();
-                int rd_end = (*pd).GetPos()+(*pd).GetLen() > (*nd).GetPos()+(*nd).GetLen() ? (*nd).GetPos()+(*nd).GetLen()-1 : (*pd).GetPos()+(*pd).GetLen()-1;
-
-
+		int plen = pd->GetLen();
+		int nlen = nd->GetLen();
+		int ppos = pd->GetPos();
+		int npos = nd->GetPos();
+                int rd_start = ppos < npos ? npos : ppos;
+                int rd_end = ppos+plen > npos+nlen ? npos+nlen-1 : ppos+plen-1;
 		
-		mismatchsum = GetMismatchSum(nd);
+		//mismatchsum = GetMismatchSum(nd);
 #ifdef DEBUG
-cout << "Mismatchsum=" << mismatchsum << " readlen=" << rlen << endl;
+cout << "Mismatchsum=" << mismatchsum << " readlen=" << nlen << endl;
 #endif
 		if(mismatchsum>=50)
 			continue;
@@ -125,6 +134,8 @@ cout << "Haplotype " << j << endl;
 cout << sp->GetPos() << " " << sp->GetRef() << " " << sp->GetAlt();
 #endif
 				emission = compute_new_emission(known_snp_list, count, t, known_index, j);
+					if(emission==0.0)
+						continue;
 					emission_list[j] += ((emission));
 					emission_set[j][count] = emission;
 			}
@@ -268,7 +279,7 @@ cout << " Count on snp " << (*snp_it)->GetPos() << " is " << max_reads << endl;
                 READ *rd = (*snp_it)->GetRead(count);
                 READ *pd = (*snp_it)->GetRead(count-1);
 
-                if(rd->GetKnownCount()>0&&rd->GetDiscordance()==0) {
+                if(rd->GetKnownOverlapCount()>0&&rd->GetDiscordance()==0) {
 			(*known_hap_count)++;
 			stretch++;
 			if(contig_new==1) {
@@ -318,8 +329,9 @@ cout << " Gap=" << gap << " contiguous=" << contiguous << " max_reads=" << max_r
                 int hap = rd->GetHap();
                 double haprob = rd->GetHapProb();
 		double hethap = sqrt((1.0-haprob)*haprob);
+		int snp_count = rd->GetSnpCount();
 
-                if(rd->GetSnpCount()==0) {
+                if(snp_count==0) {
 #ifdef DEBUG
 cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() << " for happrob calculation" << endl;
 #endif
@@ -327,8 +339,9 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                 }
 
                 // Obtain allele on current read
-                for(int s_pos=0; s_pos<rd->GetSnpCount(); s_pos++) {
-                        if(rd->GetSnp(s_pos)->GetPos() == (*snp_it)->GetPos()) {
+		long snp_position = (*snp_it)->GetPos();
+                for(int s_pos=0; s_pos<snp_count; s_pos++) {
+                        if(rd->GetSnp(s_pos)->GetPos() == snp_position) {
 				proximal_ins = rd->GetProximalInsert(s_pos);
 				proximal_del = rd->GetProximalDelete(s_pos);
                                 all = rd->GetAllele(s_pos);
@@ -337,8 +350,26 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                                 break;
                         }
                 }
+		if(hap==1) {
+                	if(all == ref) {
+                        	ref1_ct++;
+                	} else if(all == alt) {
+                                alt1_ct++;
+			} else 
+				err_ct++;
+                } else if(hap==2) {
+                	if(all == ref) {
+                        	ref2_ct++;
+                	} else if(all == alt) {
+                                alt2_ct++;
+			} else 
+				err_ct++;
+		}
+                real_count++;
+
 		if(qual<5)
 			continue;
+/*
                 // Obtain allele on previous read
                 if(pd!=NULL)
                 for(int s_pos=0; s_pos<pd->GetSnpCount(); s_pos++) {
@@ -353,7 +384,7 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                         if((hap==pd->GetHap()&&all!=pall) || (hap!=pd->GetHap()&&all==pall))
                                 //if((*snp_it)->GetKnown()==1)
 					flag = 1;
-
+*/
 /*
                 if(all == ref) {
                         probs[0] *= ((haprob)*(1.0-qualscore));
@@ -377,7 +408,6 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                 }
                 real_count++;
 */
-
 	    if(all==alt && qual>=20)
 		mapq1++;
 	    if(proximal_ins==1) {
@@ -396,6 +426,7 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
 		proximal_ins = 0;
 		proximal_del = 0;
 
+
 //prevalence=0.2;
 	    if(count>=contig_max&&count<contig_max+max_stretch) {
 		if(hap==1) {
@@ -404,7 +435,7 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                         	probs1[1] *= ((1.0-prevalence-qualscore/4.0)*haprob);
                         	probs1[2] *= ((1.0-haprob) * (qualscore/3.0));
                         	probs2[0] *= ((haprob)*(1.0-qualscore));
-                        	probs2[1] *= ((1.0-prevalence-qualscore/4.0)*haprob);
+                        	probs2[1] *= ((1.0-prevalence-qualscore/4.0)*(1.0-haprob));
                         	probs2[2] *= ((1.0-haprob) * (qualscore/3.0));
                 	} else if(all == alt) {
                         	//probs1[0] *= ((haprob) * (1.0-qualscore));
@@ -427,7 +458,7 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                 } else if(hap==2) {
                 	if(all == ref) {
                         	probs1[0] *= ((haprob)*(1.0-qualscore));
-                        	probs1[1] *= ((1.0-prevalence-qualscore/4.0)*haprob);
+                        	probs1[1] *= ((1.0-prevalence-qualscore/4.0)*(1.0-haprob));
                         	probs1[2] *= ((1.0-haprob) * (qualscore/3.0));
                         	probs2[0] *= ((haprob)*(1.0-qualscore));
                         	probs2[1] *= ((1.0-prevalence-qualscore/4.0)*haprob);
@@ -451,7 +482,7 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                         	probs2[2] *= ((2.0*qualscore/3.0));*/
 			}
 		}
-	    } else if(rd->GetKnownCount()>=0) {
+	    } else if(rd->GetKnownOverlapCount()>=0) {
                 	if(all == ref) {
                         	probs1[0] *= ((1.0-qualscore));
                         	probs1[1] *= (1.0-prevalence-qualscore/3.0);
@@ -475,25 +506,9 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
                         	probs2[2] *= ((2.0*qualscore/3.0));
 			}
 	    }
-		if(hap==1) {
-                	if(all == ref) {
-                        	ref1_ct++;
-                	} else if(all == alt) {
-                                alt1_ct++;
-			} else 
-				err_ct++;
-                } else if(hap==2) {
-                	if(all == ref) {
-                        	ref2_ct++;
-                	} else if(all == alt) {
-                                alt2_ct++;
-			} else 
-				err_ct++;
-		}
-            real_count++;
 
 #ifdef DEBUG
-cout << "For som " << (*snp_it)->GetPos() << " bearing allele " << all << ref << alt << " on read " << rd->GetPos() << ", qualscore: " << qualscore << " has known_hap_count " << rd->GetKnownCount() << " and flag " << flag << " bearing haplotype " << hap << " with haprob " << haprob << " for happrob calculation " << probs1[0] << ":" << probs1[1] << ":" << probs1[2]  << " and " << probs2[0] << ":" << probs2[1] << ":" << probs2[2] << " and proxdel " << proximal_del << " and proxins " << proximal_ins << " and clus_in " << clus_in_flag << " and clus_del " << clus_del_flag << " and clus " << clus_flag << endl;
+cout << "For som " << (*snp_it)->GetPos() << " bearing allele " << all << ref << alt << " on read " << rd->GetPos() << ", qualscore: " << qualscore << " has known_hap_count " << rd->GetKnownOverlapCount() << " and flag " << flag << " bearing haplotype " << hap << " with haprob " << haprob << " for happrob calculation " << probs1[0] << ":" << probs1[1] << ":" << probs1[2]  << " and " << probs2[0] << ":" << probs2[1] << ":" << probs2[2] << " and proxdel " << proximal_del << " and proxins " << proximal_ins << " and clus_in " << clus_in_flag << " and clus_del " << clus_del_flag << " and clus " << clus_flag << endl;
 #endif
         }
 
@@ -585,8 +600,10 @@ cout << "Start positions of two reads: " << prev_read->GetPos() << "\t" << curr_
 	while(it1<prev_read_snp_count && it2<curr_read_snp_count) {
 		SNP* snp1 = prev_snp_list[it1];
 		SNP* snp2 = curr_snp_list[it2];
+		long snp1_pos = snp1->GetPos();
+		long snp2_pos = snp2->GetPos();
 
-		if(snp1->GetPos() == snp2->GetPos()) {
+		if(snp1_pos == snp2_pos) {
 			if(snp1->GetKnown()>0) {
 				known_snp_list[*known_snp_count] = snp1;
 				known_index[2*(*known_snp_count)] = it1;
@@ -598,13 +615,12 @@ cout << "Incrementing known_overlap_count on snp: " << known_snp_list[*known_snp
 #endif
 			}
 			it1++;it2++;
-		} else if(snp1->GetPos() < snp2->GetPos()) {
+		} else if(snp1_pos < snp2_pos) {
 			it1++;
-		} else if(snp1->GetPos() > snp2->GetPos()) {
+		} else if(snp1_pos > snp2_pos) {
 			it2++;
 		}
 	}
-
 }
 
 void GetCommonSnpList(SNP**reads_snp_list, SNP** known_snp_list, int *common_snp_count, int *known_snp_count, int *common_index, int *known_index, int t)
@@ -659,6 +675,7 @@ double compute_new_emission(SNP **reads_snp_list, int count, int t, int *index, 
 	double qual_lik[3] = {1.0, 1.0, 1.0};
 	double prob = 0.0;
 	double lik = 0.0;
+	char dummy = 'N';
 
 	char ref = reads_snp_list[count]->GetRef();
 	char alt = reads_snp_list[count]->GetAlt();
@@ -668,6 +685,9 @@ double compute_new_emission(SNP **reads_snp_list, int count, int t, int *index, 
 	int quals = GetPosQual(t,pos);
 	double qual = pow(10.0,-quals/10);
 	int obt = (ref==all1) ? ((ref==all2) ? 1 : 2) : ((ref==all2) ? 3 : 4);
+
+	if(all1==dummy||all2==dummy)
+		return 0.0;
 
 	if(reads_snp_list[count]->GetKnown()>0)
 		snp_rate = known_snp_rate;

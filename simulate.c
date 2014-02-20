@@ -8,7 +8,7 @@
 #include<string.h>
 
 #define FULL
-#define DEBUG
+//#define DEBUG
 
 #define NUM_SOM 10000
 #define SOM_MIN 10

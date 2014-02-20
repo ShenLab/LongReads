@@ -4,7 +4,7 @@
 .SUFFIXES: .o .C .c .cpp
 
 # FLAGS=  -O2
-FLAGS= -g
+FLAGS= -g -pg
 
 SRCDIR = .
 BINDIR = .

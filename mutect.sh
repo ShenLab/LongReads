@@ -27,13 +27,13 @@ $MUTECT \
  --intervals $CHR \
  --input_file:tumor $INP \
  --out ${OUTPRE}.call_stats.txt \
- --coverage_file ${OUTPRE}.coverage.wig.txt \
- --fraction_contamination 0.0
+ --coverage_file ${OUTPRE}.coverage.wig.txt
 
 som=`cat snps/som_$1_$1_$2_$3_$5_$4.list`
 germ=`cut -f 2 snps/snp_$4.list`
 mutkeep=`grep KEEP ${OUTPRE}.call_stats.txt | cut -f 2`
 mutall=`cut -f 2 ${OUTPRE}.call_stats.txt`
+somall=`echo $mutall $som | tr ' ' '\n' | sort -g | uniq -c | awk '$1==2' | wc -l`
 
 mutkeepgerm=`echo $germ $mutkeep | tr ' ' '\n' | sort -g | uniq -c | awk '$1==2' | wc -l`
 mutallgerm=`echo $germ $mutall | tr ' ' '\n' | sort -g | uniq -c | awk '$1==2' | wc -l`
@@ -52,4 +52,17 @@ let "afp=${atot}-$atp-$mutallgerm"
 echo "" > ${OUTPRE}.m
 echo "Keep $ktp $kfp" >> ${OUTPRE}.m
 echo "All $atp $afp" >> ${OUTPRE}.m
+somall=160
+echo "Num Sensitivity FalsePositives TruePositives" | tr ' ' '\t' > ${OUTPRE}.n
+for i in `seq 1 100`
+do
+	mutrockeep=`grep KEEP ${OUTPRE}.call_stats.txt | cut -f 2,17 | awk -v thresh=$i '$2>thresh' | cut -f 1`
+	mutrockeepgerm=`echo $germ $mutrockeep | tr ' ' '\n' | sort -g | uniq -c | awk '$1==2' | wc -l`
+	rktp=`echo $mutrockeep $som | tr ' ' '\n' | sort -g | uniq -c | awk '$1==2' | wc -l`
+	sktp=`echo "scale=2; $rktp/$somall" | bc`
+	rktot=`echo $mutrockeep | tr ' ' '\n' | wc -l`
+	let "rkfp=${rktot}-$rktp-$mutrockeepgerm"
+	num=`echo "scale=2; $i/100" | bc`
+	echo "$num $sktp $rkfp $rktp" | tr ' ' '\t' >> ${OUTPRE}.n
+done
 
