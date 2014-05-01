@@ -123,13 +123,17 @@ cout << sp->GetPos() << " " << sp->GetRef() << " " << sp->GetAlt();
 				emission = compute_new_emission(known_snp_list, count, t, known_index, j);
 					if(emission==0.0)
 						continue;
-					emission_list[j] += ((emission));
+					emission_list[j] += (log10(emission));
 					emission_set[j][count] = emission;
 			}
 #ifdef DEBUG
-cout << "Total Emission = " << emission_list[j] << endl;
+cout << "Total Log Emission = " << emission_list[j] << endl;
 #endif
 	  	}
+		if(known_snp_count>0) {
+			emission_list[1] = pow(10,emission_list[1]/known_snp_count);
+			emission_list[2] = pow(10,emission_list[2]/known_snp_count);
+		}
 		if(emission_set[1][0]<emission_set[2][0])
 			direction = 2;
 		for(int count=1; count<known_snp_count; count++) {
@@ -180,7 +184,7 @@ void FindSomaticMutations(long snp_start, long snp_end)
 			break;
 
 		int g=0;
-		double post[3], prior[3], happrob[3];
+		double post[4], prior[4], happrob[4];
 		double norm = 0.0, snp_rate = 0.000003;
 
 #ifdef DEBUG
@@ -189,42 +193,34 @@ cout << "Prior het prob for som " << (*snp_it)->GetPos() << " = " << prior[1] <<
 		// Get posterior probability from haplotype probabilities
 		gap = somaticHaplotypeProbability(snp_it, happrob, &known_hap_count);
 
-		prior[0] = 1 - snp_rate - snp_rate*snp_rate;
+		prior[0] = 1 - 2*snp_rate - snp_rate*snp_rate;
 		prior[1] = snp_rate;
-		prior[2] = snp_rate*snp_rate;
+		prior[2] = snp_rate;
+		prior[3] = snp_rate*snp_rate;
 
-		for(g=0; g<3; g++) {
+		for(g=0; g<4; g++) {
 			norm += prior[g]*happrob[g];
 		}
 
-		for(g=0; g<3; g++) {
+		for(g=0; g<4; g++) {
 			post[g] = (prior[g]*happrob[g])/norm;
 		}
 
-/*
-		Should not run
-		known_hap_count=1;
-		if(known_hap_count==0||gap==4) {
-			post[0] = (*snp_it)->GetPosteriors()[0];
-			post[1] = (*snp_it)->GetPosteriors()[1];
-			post[2] = (*snp_it)->GetPosteriors()[2];
-#ifdef DEBUG
-cout << "Zero known_snp_count for " << (*snp_it)->GetPos() << endl;
-#endif
-		}
-*/
-		if(post[1] > 1.0)
+		if(post[2] > 1.0)
 			cout << "Posterior het for somatic " << (*snp_it)->GetPos() << " > 1.0" << endl;
-    		(*snp_it)->add_somatic_posteriors(post);
+
+		double short_post[3];
+		short_post[0]=post[0]; short_post[1]=post[2]; short_post[2]=post[3];
+    		(*snp_it)->add_somatic_posteriors(short_post);
 
 #ifdef DEBUG
-cout << "Posterior het prob for som " << (*snp_it)->GetPos() << " = " << post[1] << endl;
+cout << "Posterior het prob for som " << (*snp_it)->GetPos() << " = " << post[2] << endl;
 #endif
 	}
 }
 
 // Calculate posterior probability
-int somaticHaplotypeProbability(vector<SNP*>::iterator snp_it, double probs[3], int *known_hap_count)
+int somaticHaplotypeProbability(vector<SNP*>::iterator snp_it, double probs[4], int *known_hap_count)
 {
         char ref = (*snp_it)->GetRef();
         char alt = (*snp_it)->GetAlt();
@@ -236,17 +232,15 @@ int somaticHaplotypeProbability(vector<SNP*>::iterator snp_it, double probs[3], 
 	int clus_flag = 0, clus_in_flag = 1, clus_del_flag = 1;
 	int max_reads = (*snp_it)->GetReadCount();
 	double probs1[3], probs2[3];
-        double prevalence;
+        double prev;
 
 	ref_ct = (*snp_it)->GetRefCount();
 	alt_ct = (*snp_it)->GetAltCount();
 	
 	// dynamically calculate the prevalence
-	prevalence = (double)(alt_ct)/(double)(ref_ct+alt_ct);
+	prev = (double)(alt_ct)/(double)(ref_ct+alt_ct);
 	*known_hap_count = 0;
-        probs[0] = 1.0; probs[1] = 1.0; probs[2] = 1.0;
-        probs1[0] = 1.0; probs1[1] = 1.0; probs1[2] = 1.0;
-        probs2[0] = 1.0; probs2[1] = 1.0; probs2[2] = 1.0;
+        probs[0] = 1.0; probs[1] = 1.0; probs[2] = 1.0, probs[3] = 1.0;
 
 #ifdef DEBUG
 cout << " Count on snp " << (*snp_it)->GetPos() << " is " << max_reads << endl;
@@ -291,7 +285,7 @@ cout << "SNP=" << (*snp_it)->GetPos() << " Gap=" << gap << " contiguous=" << con
 		gap++;
 
 #ifdef DEBUG
-cout << " Gap=" << gap << " contiguous=" << contiguous << " max_reads=" << max_reads << " max_stretch=" << max_stretch << " contig_max=" << contig_max << " prevalence = " << prevalence << endl;
+cout << " Gap=" << gap << " contiguous=" << contiguous << " max_reads=" << max_reads << " max_stretch=" << max_stretch << " contig_max=" << contig_max << " prevalence = " << prev << endl;
 #endif
 
 	// Second for loop performs actual genotype score calculation
@@ -299,15 +293,16 @@ cout << " Gap=" << gap << " contiguous=" << contiguous << " max_reads=" << max_r
 		bool proximal_ins = 0, proximal_del = 0;
                 char all, pall = 'N';
 		int flag = 0;
-                double qual, qualscore;
+                double qual, qs;
                 READ *rd = (*snp_it)->GetRead(count);
                 READ *pd = (*snp_it)->GetRead(count-1);
 
                 int hap = rd->GetHap();
                 double haprob = rd->GetHapProb();
-		double hethap = sqrt((1.0-haprob)*haprob);
 		int snp_count = rd->GetSnpCount();
 
+		if(hap==2)
+			haprob = 1.0 - haprob;
                 if(snp_count==0) {
 #ifdef DEBUG
 cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() << " for happrob calculation" << endl;
@@ -323,7 +318,7 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
 				proximal_del = rd->GetProximalDelete(s_pos);
                                 all = rd->GetAllele(s_pos);
                                 qual = rd->GetQualScore(s_pos)-33;
-                                qualscore = pow(10.0,-(qual/10.0));
+                                qs = pow(10.0,-(qual/10.0));
                                 break;
                         }
                 }
@@ -367,87 +362,38 @@ cout << "For som " << (*snp_it)->GetPos() << " skipping read " << rd->GetPos() <
 
 		// Work on contiguous stretch only
 		if(count>=contig_max&&count<contig_max+max_stretch) {
-			// Since we are haplotype-aware, two separate set of calculations are performed
-			// First set assumes somatic mutation lies on haplotype 1
-			// Second set assumes somatic mutation lies on haplotype 2
-			// In the end we consider that haplotype to contain somatic mutation, which has higher het probability assigned
-			if(hap==1) {
-                		if(all == ref) {
-                	        	probs1[0] *= ((haprob)*(1.0-qualscore));
-                	        	probs1[1] *= ((1.0-prevalence-qualscore/4.0)*haprob);
-                	        	probs1[2] *= ((1.0-haprob) * (qualscore/3.0));
-                	        	probs2[0] *= ((haprob)*(1.0-qualscore));
-                	        	probs2[1] *= ((1.0-prevalence-qualscore/4.0)*(1.0-haprob));
-                	        	probs2[2] *= ((1.0-haprob) * (qualscore/3.0));
-                		} else if(all == alt) {
-                	        	probs1[0] *= (haprob*(1.0*qualscore/3.0));
-                	        	probs1[1] *= ((1.0*qualscore/3.0)*(1.0-haprob));
-                	        	probs1[2] *= ((1.0-haprob)*(1.0*qualscore/3.0));
-                	        	probs2[0] *= ((1.0-haprob) * (qualscore/3.0));
-                	        	probs2[1] *= (prevalence*haprob);
-                	        	probs2[2] *= ((haprob)*(1.0-qualscore));
-				}
-                	} else if(hap==2) {
-                		if(all == ref) {
-                	        	probs1[0] *= ((haprob)*(1.0-qualscore));
-                	        	probs1[1] *= ((1.0-prevalence-qualscore/4.0)*(1.0-haprob));
-                	        	probs1[2] *= ((1.0-haprob) * (qualscore/3.0));
-                	        	probs2[0] *= ((haprob)*(1.0-qualscore));
-                	        	probs2[1] *= ((1.0-prevalence-qualscore/4.0)*haprob);
-                	        	probs2[2] *= ((1.0-haprob) * (qualscore/3.0));
-                		} else if(all == alt) {
-                	        	probs1[0] *= ((1.0-haprob) * (qualscore/3.0));
-                	        	probs1[1] *= (prevalence*haprob);
-                	        	probs1[2] *= ((haprob)*(1.0-qualscore));
-                	        	probs2[0] *= (haprob*(1.0*qualscore/3.0));
-                	        	probs2[1] *= ((1.0*qualscore/3.0)*(1.0-haprob));
-                	        	probs2[2] *= ((1.0-haprob)*(1.0*qualscore/3.0));
-				}
+                	if(all == ref) {
+                        	probs[0] *= (1.0-qs);
+                        	probs[1] *= ((1.0-qs)*haprob + (prev*qs+(1.0-prev)*(1.0-qs))*(1.0-haprob));
+                        	probs[2] *= ((1.0-qs)*(1.0-haprob) + (prev*qs+(1.0-prev)*(1.0-qs))*haprob);
+                        	probs[3] *= (prev*qs+(1.0-prev)*(1.0-qs));
+                	} else if(all == alt) {
+                        	probs[0] *= (qs);
+                        	probs[1] *= (qs*haprob + (prev*(1.0-qs)+(1.0-prev)*qs)*(1.0-haprob));
+                        	probs[2] *= (qs*(1.0-haprob) + (prev*(1.0-qs)+(1.0-prev)*qs)*haprob);
+                        	probs[3] *= (prev*(1.0-qs)+(1.0-prev)*qs);
 			}
 		} else if(rd->GetKnownOverlapCount()>=0) { // Insufficient contiguous regions. Haplotype unaware
                 	if(all == ref) {
-                        	probs1[0] *= ((1.0-qualscore));
-                        	probs1[1] *= (1.0-prevalence-qualscore/3.0);
-                        	probs1[2] *= ((qualscore/3.0));
-                        	probs2[0] *= ((1.0-qualscore));
-                        	probs2[1] *= (1.0-prevalence-qualscore/3.0);
-                        	probs2[2] *= ((qualscore/3.0));
+                        	probs[0] *= (1.0-qs);
+                        	probs[1] *= (1.0-qs);
+                        	probs[2] *= (prev*qs+(1.0-prev)*(1.0-qs));
+                        	probs[3] *= (prev*qs+(1.0-prev)*(1.0-qs));
                 	} else if(all == alt) {
-                        	probs1[0] *= ((qualscore/3.0));
-                        	probs1[1] *= (prevalence-qualscore/3.0);
-                        	probs1[2] *= ((1.0-qualscore));
-                        	probs2[0] *= ((qualscore/3.0));
-                        	probs2[1] *= (prevalence-qualscore/3.0);
-                        	probs2[2] *= ((1.0-qualscore));
-			} else {
-                        	probs1[0] *= ((2.0*qualscore/3.0));
-                        	probs1[1] *= (qualscore/2.0);
-                        	probs1[2] *= ((2.0*qualscore/3.0));
-                        	probs2[0] *= ((2.0*qualscore/3.0));
-                        	probs2[1] *= (qualscore/2.0);
-                        	probs2[2] *= ((2.0*qualscore/3.0));
+                        	probs[0] *= (qs);
+                        	probs[1] *= (qs);
+                        	probs[2] *= (prev*(1.0-qs)+(1.0-prev)*qs);
+                        	probs[3] *= (prev*(1.0-qs)+(1.0-prev)*qs);
 			}
-	    }
+		}
 
 #ifdef DEBUG
-cout << "For som " << (*snp_it)->GetPos() << " bearing allele " << all << ref << alt << " on read " << rd->GetPos() << ", qualscore: " << qualscore << " has known_hap_count " << rd->GetKnownOverlapCount() << " and flag " << flag << " bearing haplotype " << hap << " with haprob " << haprob << " for happrob calculation " << probs1[0] << ":" << probs1[1] << ":" << probs1[2]  << " and " << probs2[0] << ":" << probs2[1] << ":" << probs2[2] << " and proxdel " << proximal_del << " and proxins " << proximal_ins << " and clus_in " << clus_in_flag << " and clus_del " << clus_del_flag << " and clus " << clus_flag << endl;
+cout << "For som " << (*snp_it)->GetPos() << " bearing allele " << all << ref << alt << " on read " << rd->GetPos() << ", qualscore: " << qs << " has known_hap_count " << rd->GetKnownOverlapCount() << " and flag " << flag << " bearing haplotype " << hap << " with haprob " << haprob << " for happrob calculation " << probs[0] << ":" << probs[1] << ":" << probs[2]  << ":" << probs[3] << " and proxdel " << proximal_del << " and proxins " << proximal_ins << " and clus_in " << clus_in_flag << " and clus_del " << clus_del_flag << " and clus " << clus_flag << endl;
 #endif
         }
 
 	// Pick one of two sets of scores
-	double norm1 = probs1[0] + probs1[1] + probs1[2];
-	double norm2 = probs2[0] + probs2[1] + probs2[2];
-	if(probs1[1]/norm1>probs2[1]/norm1) {
-		probs[0]=probs1[0];probs[1]=probs1[1];probs[2]=probs1[2];
-	} else if(probs2[1]/norm2>probs1[1]/norm1) {
-		probs[0]=probs2[0];probs[1]=probs2[1];probs[2]=probs2[2];
-	} else if(probs1[0]/norm1<probs2[0]/norm2) {
-		probs[0]=probs1[0];probs[1]=probs1[1];probs[2]=probs1[2];
-	} else if(probs2[0]/norm2<probs1[0]/norm1) {
-		probs[0]=probs2[0];probs[1]=probs2[1];probs[2]=probs2[2];
-	} else {
-		probs[0]=probs1[0];probs[1]=probs1[1];probs[2]=probs1[2];
-	}
+	double norm = probs[0] + probs[1] + probs[2] + probs[3];
 
 	PROXIMAL_READ_CT = 2 + (int)ceil((double)(real_count)/10.0);
 	if(clus_in_flag>=1||clus_del_flag>=1)
@@ -461,11 +407,11 @@ cout << "For som " << (*snp_it)->GetPos() << " bearing allele " << all << ref <<
 			gap = 7;
 		if(clus_flag==1)
 			gap = 8;
-		probs[0] = 1.0; probs[1] = probs[2] = 0.0;
+		probs[0] = 1.0; probs[1] = probs[2] = probs[3] = 0.0;
 	}
-        if(probs[0]<0.0||probs[1]<0.0||probs[2]<0.0) {
-                cout << "Negative: " << probs[0] << ":" << probs[1] << ":" << probs[2] << endl;
-                probs[0] = 1.0; probs[1] = probs[2] = 0.0;
+        if(probs[0]<0.0||probs[1]<0.0||probs[2]<0.0||probs[3]<0.0) {
+                cout << "Negative: " << probs[0] << ":" << probs[1] << ":" << probs[2] << ":" << probs[3] << endl;
+                probs[0] = 1.0; probs[1] = probs[2] = probs[3] = 0.0;
 		gap=5;
 	}
 
