@@ -6,8 +6,10 @@
 # FLAGS=  -O2
 FLAGS= -g
 
-# Here and at other places the path to bamtools needs to be set
-HAPFLAGS= -Wl,-rpath,~/tools/bamtools-master/lib/
+# NOTE: Set path to bamtools here
+TOOLS=/usr/bin
+
+HAPFLAGS= -Wl,-rpath,$(TOOLS)/bamtools-master/lib/
 
 SRCDIR = .
 BINDIR = .
@@ -22,7 +24,7 @@ OBJ3 = hapmut.o
 #===============================================================================
 
 hapmut : $(HEADER) $(OBJ) $(OBJ3)
-	g++ -g $(FLAGS) $(HAPFLAGS) -o $(BINDIR)/hapmut $(OBJ) $(OBJ3) -L~/tools/bamtools-master/lib/ -lm -lbamtools
+	g++ -g $(FLAGS) $(HAPFLAGS) -o $(BINDIR)/hapmut $(OBJ) $(OBJ3) -L$(TOOLS)/bamtools-master/lib/ -lm -lbamtools
 
 #===============================================================================
 
@@ -41,7 +43,7 @@ hapmut.o: nb.h read.h snp.h
 #===============================================================================
 
 .cpp.o: $(HEADERI)
-	g++ -c -g -I~/tools/bamtools-master/include $(FLAGS) $<
+	g++ -c -g -I$(TOOLS)/bamtools-master/include $(FLAGS) $<
 .C.o: $(HEADERI)
 	g++ -c -g $(FLAGS) $<
 
