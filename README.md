@@ -23,7 +23,7 @@ The code is written in C++ and tested to work on a Unix platform.
 Compilation:
 ------------
 
-HapMut requires g++, the standard C/C++ libraries and also the [Bamtools API library](https://github.com/pezmaster31/bamtools) for compilation. A makefile is provided to compile HapMut using the necessary libraries. Before proceeding with compilation, the path to the header files and the shared libraries of Bamtools API has to be specified in the makefile. HapMut can then be compiled using the 'make hapmut' command in the same directory as the source files. The generated binary can then be placed in your exported PATH location or any other local folder.
+HapMut requires g++, the standard C/C++ libraries and also the [Bamtools API library](https://github.com/pezmaster31/bamtools) for compilation. A makefile is provided to compile HapMut using the necessary libraries. Before proceeding with compilation, the path to the install location of Bamtools API has to be specified in the makefile. HapMut can then be compiled using the 'make hapmut' command in the same directory as the source files. The generated binary can then be placed in your exported PATH location or any other local folder.
 
 
 Usage:
