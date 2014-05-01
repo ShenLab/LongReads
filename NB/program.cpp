@@ -1086,4 +1086,3 @@ cout << "Entering loop" << endl;
 	fclose(snp_file);
 	return 0;
 }
-
