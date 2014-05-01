@@ -4,7 +4,8 @@
 .SUFFIXES: .o .C .c .cpp
 
 # FLAGS=  -O2
-FLAGS= -g -pg
+# FLAGS= -g -pg
+FLAGS= -g
 
 SRCDIR = .
 BINDIR = .
@@ -41,7 +42,7 @@ program.o: hmm.h read.h snp.h
 .cpp.o: $(HEADERI)
 	g++ -c -g $(FLAGS) $<
 .C.o: $(HEADERI)
-	g++ -c -g -I/home/singhann/tools/boost_1_54_0 $(FLAGS) $<
+	g++ -c -g $(FLAGS) $<
 
 #checkout:
 #	co -l $(REV) $(ALL)
