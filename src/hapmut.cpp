@@ -655,7 +655,7 @@ int main(int argc, char **argv)
 			if(token[0]==NULL||(token[1] = strtok(NULL, "=")) == NULL) {
 				printf("Ignoring incorrect parameter #%d\n", param);
 			} else {
-				if(strcmp(token[0],"-sam_file")==0) {
+				if(strcmp(token[0],"-bam_file")==0) {
 					if(sam_ck>0) {
 						printf("Duplicate parameter %s=%s, ignoring..\n", token[0],token[1]);
 					} else {
@@ -725,12 +725,12 @@ int main(int argc, char **argv)
 		}
 	} else {
 		printf("Insufficient arguments\n");
-		printf("Usage: hapmut -sam_file=<sam file> -vcf_file=<vcf file> -dbsnp=<dbsnp file> -out_base=<output base> [-err_rate=<error rate>] [-chr=<chr:start-end | ALL>] [-max_reads=<max reads at a time>] [-max_read_len=<maximum expected read length>] [-indel_range=<range of search for sequencing artifact>]\n");
+		printf("Usage: hapmut -bam_file=<bam file> -vcf_file=<vcf file> -dbsnp=<dbsnp file> -out_base=<output base> [-err_rate=<error rate>] [-chr=<chr:start-end | ALL>] [-max_reads=<max reads at a time>] [-max_read_len=<maximum expected read length>] [-indel_range=<range of search for sequencing artifact>]\n");
 		return 1;
 	}
 	if(sam_ck==0||vcf_ck==0||dbsnp_ck==0||out_ck==0) {
 		printf("Insufficient arguments\n");
-		printf("Usage: hapmut -sam_file=<sam file> -vcf_file=<vcf file> -dbsnp=<dbsnp file> -out_base=<output base> [-err_rate=<error rate>] [-chr=<chr:start-end | ALL>] [-max_reads=<max reads at a time>] [-max_read_len=<maximum expected read length>] [-indel_range=<range of search for sequencing artifact>]\n");
+		printf("Usage: hapmut -bam_file=<bam file> -vcf_file=<vcf file> -dbsnp=<dbsnp file> -out_base=<output base> [-err_rate=<error rate>] [-chr=<chr:start-end | ALL>] [-max_reads=<max reads at a time>] [-max_read_len=<maximum expected read length>] [-indel_range=<range of search for sequencing artifact>]\n");
 		return 1;
 	}
 
@@ -791,7 +791,7 @@ cout << "Entering loop" << endl;
 			cout << "Reading vcf file; chromosome " << (*refId).RefName << endl;
 			SetVcfRegion(snp_file,(*refId).RefName);
 			read_snp_file(snp_file, (*refId).RefName, read_info[iter].end + MAX_READ_LEN, start, end); // Reads specified range or from pos 1
-			cout << "Reading sam file; chromosome " << (*refId).RefName << endl;
+			cout << "Reading bam file; chromosome " << (*refId).RefName << endl;
 			int read_ct = read_sam_files(reader); // Reads 10000 at a time
 			if(iter==0) {
 				distanceOutput << (*refId).RefName << "\t" << reads_list[0]->GetPos() << "\t" << reads_list[0]->GetHap() << "\t" << reads_list[0]->GetHapProb() << endl;
